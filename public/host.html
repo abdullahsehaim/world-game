@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>جولة العالم — شاشة المضيف</title>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+<style>
+  body { display: grid; grid-template-rows: auto 1fr auto; height: 100vh; overflow: hidden; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: .8rem 1.5rem; border-bottom: 1px solid var(--line); background: rgba(11,16,32,.6); }
+  header .brand { font-size: 1.4rem; font-weight: 800; letter-spacing: .5px; }
+  header .brand span { color: var(--accent); }
+  header .round { color: var(--muted); font-size: 1.05rem; }
+  main { padding: 1.2rem 2rem; overflow: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; }
+  footer { display: flex; align-items: center; gap: .6rem; padding: .7rem 1.5rem; border-top: 1px solid var(--line); background: rgba(11,16,32,.8); flex-wrap: wrap; }
+  footer .spacer { flex: 1; }
+  .big-title { font-size: clamp(2rem, 5vw, 4rem); font-weight: 800; }
+  .lobby { display: grid; grid-template-columns: 340px 1fr; gap: 2rem; width: min(1200px, 100%); align-items: start; }
+  .lobby img { width: 300px; height: 300px; border-radius: 16px; background: #fff; padding: 8px; }
+  .lobby .url { font-size: 1.4rem; direction: ltr; font-family: ui-monospace, monospace; color: var(--accent2); word-break: break-all; }
+  .teams-wrap { display: flex; flex-wrap: wrap; justify-content: center; }
+  .qwrap { width: min(1100px, 100%); display: grid; grid-template-columns: 1.2fr 1fr; gap: 1.5rem; align-items: center; }
+  .qwrap.single { grid-template-columns: 1fr; }
+  .flag { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 18px; box-shadow: 0 20px 60px rgba(0,0,0,.5); border: 4px solid #fff2; background: #fff1; }
+  .status { font-size: 1.6rem; text-align: center; min-height: 2.4rem; }
+  .status b { color: var(--accent); }
+  .timer-row { display: flex; align-items: center; gap: 1rem; width: min(1100px, 100%); }
+  .timer-row .timer { flex: 1; }
+  .timer-row .num { font-size: 1.6rem; font-weight: 800; min-width: 2.5rem; text-align: center; font-variant-numeric: tabular-nums; }
+  .mapbox { width: min(1100px, 100%); height: min(58vh, 560px); }
+  .options.host .opt { font-size: 1.5rem; min-height: 80px; }
+  .auction-card { font-size: 1.3rem; }
+  .auction-card .cat { font-size: 2.6rem; font-weight: 800; color: var(--accent); }
+  table.res { border-collapse: collapse; width: min(900px, 100%); font-size: 1.2rem; }
+  table.res th, table.res td { padding: .5rem .8rem; border-bottom: 1px solid var(--line); text-align: right; }
+  table.res td.num { direction: ltr; text-align: left; font-variant-numeric: tabular-nums; }
+  .podium { display: flex; align-items: flex-end; gap: 1.2rem; justify-content: center; margin-top: 1rem; }
+  .podium .p { width: 220px; text-align: center; }
+  .podium .p .block { background: var(--card); border: 1px solid var(--line); border-radius: 16px 16px 0 0; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; padding: 1rem; font-size: 1.4rem; font-weight: 800; }
+  .podium .p.first .block { height: 220px; background: linear-gradient(180deg, #f5b942, #b47d12); color: #0b1020; }
+  .podium .p.second .block { height: 170px; background: linear-gradient(180deg, #cbd5e1, #64748b); color: #0b1020; }
+  .podium .p.third .block { height: 130px; background: linear-gradient(180deg, #d97706, #7c2d12); }
+  .podium .name { font-size: 1.3rem; margin-bottom: .4rem; }
+  .manage { position: fixed; inset: auto 0 0 0; background: var(--bg2); border-top: 1px solid var(--line); padding: 1rem 1.5rem; max-height: 50vh; overflow: auto; }
+  .manage .row { display: flex; align-items: center; gap: .6rem; padding: .3rem 0; }
+  .manage input { width: 90px; padding: .4rem; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font-family: inherit; }
+  .small { font-size: .9rem; padding: .5rem .9rem; }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">🌍 جولة <span>العالم</span></div>
+  <div class="round" id="hdr"></div>
+  <div class="pill" id="conn">جارٍ الاتصال…</div>
+</header>
+<main id="main"></main>
+<footer>
+  <button id="btnStart" class="hidden">ابدأ اللعبة ▶</button>
+  <button id="btnNext" class="hidden">التالي ⏭</button>
+  <button id="btnReveal" class="ghost hidden">كشف الإجابة الآن</button>
+  <button id="btnSkip" class="ghost hidden small">إنهاء الجولة</button>
+  <span class="spacer"></span>
+  <button id="btnManage" class="ghost small">إدارة الفرق</button>
+  <button id="btnScores" class="ghost small">إعادة اللعب (تصفير النقاط)</button>
+  <button id="btnReset" class="danger small">تصفير كامل</button>
+</footer>
+<div id="manage" class="manage hidden"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/common.js"></script>
+<script>
+const socket = io();
+let ST = null, map = null, lastKey = '', lastPhaseKey = '';
+let cd = makeCountdown(null, null), lastDeadline = -1;
+const main = $('#main');
+
+socket.on('connect', () => { $('#conn').textContent = 'متصل'; $('#conn').className = 'pill good'; socket.emit('host:hello', new URLSearchParams(location.search).get('key') || '', r => { if (!r.ok) { $('#conn').textContent = 'مفتاح المضيف غير صحيح'; $('#conn').className = 'pill bad'; } }); });
+socket.on('disconnect', () => { $('#conn').textContent = 'انقطع الاتصال'; $('#conn').className = 'pill bad'; });
+socket.on('state', st => { syncClock(st); const prev = ST; ST = st; render(prev); });
+
+$('#btnStart').onclick = () => { Sfx.unlock(); socket.emit('host:start'); };
+$('#btnNext').onclick = () => { Sfx.unlock(); socket.emit('host:next'); };
+$('#btnReveal').onclick = () => socket.emit('host:reveal');
+$('#btnSkip').onclick = () => socket.emit('host:skipRound');
+$('#btnReset').onclick = () => { if (confirmBox('تصفير كامل: حذف الفرق والنقاط والعودة للبداية؟')) socket.emit('host:reset'); };
+$('#btnScores').onclick = () => { if (confirmBox('تصفير النقاط والعودة إلى غرفة الانتظار مع إبقاء الفرق؟')) socket.emit('host:restartScores'); };
+$('#btnManage').onclick = () => { $('#manage').classList.toggle('hidden'); renderManage(); };
+function confirmBox(msg) { return window.confirm ? window.confirm(msg) : true; }
+
+const sortedTeams = () => Object.values(ST.teams).sort((a, b) => b.score - a.score);
+const teamName = id => (ST.teams[id] || {}).name || '—';
+
+function render(prev) {
+  const st = ST;
+  $('#hdr').textContent = st.round >= 0 && st.phase !== 'end' ? `الجولة ${st.round + 1} من ${st.totalRounds} — ${st.roundTitle}` + (st.qIndex >= 0 && st.q ? ` · سؤال ${st.qIndex + 1}/${st.totalQ}` : '') : '';
+  // أزرار التحكم
+  $('#btnStart').classList.toggle('hidden', st.phase !== 'lobby');
+  $('#btnStart').disabled = Object.keys(st.teams).length === 0;
+  $('#btnNext').classList.toggle('hidden', !['intro', 'reveal', 'leaderboard', 'bet'].includes(st.phase));
+  $('#btnNext').textContent = st.phase === 'intro' ? 'ابدأ الأسئلة ▶' : st.phase === 'leaderboard' ? (st.round + 1 < st.totalRounds ? 'الجولة التالية ▶' : 'النتيجة النهائية 🏆') : st.phase === 'bet' ? 'إغلاق الرهانات ▶' : 'السؤال التالي ⏭';
+  $('#btnReveal').classList.toggle('hidden', st.phase !== 'question');
+  $('#btnSkip').classList.toggle('hidden', !['question', 'bet', 'reveal', 'intro'].includes(st.phase));
+
+  const key = [st.phase, st.round, st.qIndex, st.buzz && st.buzz.holder, st.result ? 1 : 0].join('|');
+  if (key !== lastKey) { lastKey = key; drawPhase(prev); }
+  updateLive();
+  if (!$('#manage').classList.contains('hidden')) renderManage();
+}
+
+function drawPhase(prev) {
+  const st = ST; main.innerHTML = ''; map = null; cd.set(0); lastDeadline = -1;
+  const wrap = (html) => { const d = document.createElement('div'); d.className = 'fade-in'; d.style.width = '100%'; d.innerHTML = html; main.appendChild(d); return d; };
+
+  if (st.phase === 'lobby') {
+    wrap(`<div class="lobby">
+      <div class="card"><img src="${st.qr}" alt="QR"><div class="muted" style="margin-top:.8rem">امسحوا الرمز أو افتحوا الرابط</div><div class="url">${esc(st.joinUrl)}</div></div>
+      <div><div class="big-title">غرفة الانتظار</div><p class="muted" style="font-size:1.2rem">كل فريق يدخل اسمه من جواله. الفريق الثنائي يمكنه الدخول من جوالين بنفس الاسم.</p>
+      <div class="teams-wrap" id="teams"></div></div></div>`);
+    return;
+  }
+  if (st.phase === 'intro') {
+    wrap(`<div class="card" style="width:min(900px,100%);padding:2.5rem"><div style="font-size:4rem">${ROUND_ICON[st.roundType]}</div>
+      <div class="muted" style="font-size:1.3rem">الجولة ${st.round + 1}</div><div class="big-title">${esc(st.roundTitle)}</div>
+      <p style="font-size:1.35rem;line-height:1.8;margin-top:1rem">${esc(st.roundDesc)}</p>
+      <div class="muted">${st.totalQ} أسئلة</div></div>`);
+    return;
+  }
+  if (st.phase === 'leaderboard' || st.phase === 'end') {
+    const teams = sortedTeams();
+    if (st.phase === 'end') {
+      Sfx.fanfare();
+      const [a, b, c] = teams;
+      wrap(`<div class="big-title">🏆 النتيجة النهائية</div><div class="podium">
+        ${b ? `<div class="p second"><div class="name">${esc(b.name)}</div><div class="block"><div>🥈</div><div class="num">${b.score}</div></div></div>` : ''}
+        ${a ? `<div class="p first"><div class="name">${esc(a.name)}</div><div class="block"><div>🥇</div><div class="num">${a.score}</div></div></div>` : ''}
+        ${c ? `<div class="p third"><div class="name">${esc(c.name)}</div><div class="block"><div>🥉</div><div class="num">${c.score}</div></div></div>` : ''}
+      </div><div class="board" style="margin-top:1.5rem" id="board"></div>`);
+    } else {
+      wrap(`<div class="big-title">الترتيب بعد ${esc(st.roundTitle)}</div><div class="board" id="board"></div>`);
+    }
+    drawBoard($('#board'), teams, null);
+    return;
+  }
+
+  // ----- الأسئلة -----
+  const timerHtml = `<div class="timer-row"><div class="timer"><div class="bar" id="bar"></div></div><div class="num" id="num"></div></div>`;
+  if (st.roundType === 'flag') {
+    const q = st.q;
+    wrap(`${timerHtml}<div class="qwrap"><img class="flag" src="/flags/${esc(q.flag)}.svg" alt="علم">
+      <div><h2 style="font-size:2rem;margin-bottom:1rem;text-align:center">${esc(q.text)}</h2>
+      <div class="options host" id="opts">${q.options.map((o, i) => `<div class="opt" data-i="${i}">${esc(o)}</div>`).join('')}</div>
+      <div class="status" id="status" style="margin-top:1rem"></div></div></div>
+      <div class="teams-wrap" id="teams"></div>`);
+  } else if (st.roundType === 'map') {
+    wrap(`${timerHtml}<h2 style="font-size:2rem;text-align:center">${esc(st.q.text)}</h2>
+      <div class="mapbox"><svg class="map" id="map"></svg></div><div class="teams-wrap" id="teams"></div><div id="res" style="width:min(900px,100%)"></div>`);
+    loadWorld().then(() => { map = buildMap($('#map')); drawMapOverlay(); });
+  } else if (st.roundType === 'auction') {
+    if (st.phase === 'bet') {
+      wrap(`${timerHtml}<div class="card auction-card" style="width:min(800px,100%);padding:2.5rem"><div class="muted">التصنيف</div><div class="cat">${esc(st.q.category)}</div>
+        <div style="margin-top:.6rem">المستوى: <span class="pill gold">${esc(st.q.difficulty)}</span></div>
+        <p class="muted" style="margin-top:1.2rem">راهنوا الآن من جوالاتكم…</p></div><div class="teams-wrap" id="teams"></div>`);
+    } else {
+      wrap(`${timerHtml}<div class="qwrap single"><div><div class="pill gold">${esc(st.q.category)} · ${esc(st.q.difficulty)}</div>
+        <h2 style="font-size:2.2rem;margin:1rem 0;text-align:center">${esc(st.q.text)}</h2>
+        <div class="options host" id="opts">${st.q.options.map((o, i) => `<div class="opt" data-i="${i}">${esc(o)}</div>`).join('')}</div></div></div>
+        <div class="teams-wrap" id="teams"></div><div id="res" style="width:min(900px,100%)"></div>`);
+    }
+  }
+  if (st.phase === 'reveal') showReveal(prev);
+}
+
+function drawBoard(el, teams, deltas) {
+  const max = Math.max(1, ...teams.map(t => t.score));
+  el.innerHTML = teams.map((t, i) => `<div class="row"><div class="rank">${i + 1}</div>
+    <div><div>${esc(t.name)}</div><div class="bar"><i style="width:0%"></i></div></div>
+    <div class="score">${t.score}${deltas && deltas[t.id] != null ? `<span class="delta ${deltas[t.id] > 0 ? 'pos' : deltas[t.id] < 0 ? 'neg' : ''}">${deltas[t.id] ? fmt(deltas[t.id]) : ''}</span>` : ''}</div></div>`).join('');
+  requestAnimationFrame(() => $$('.bar i', el).forEach((b, i) => b.style.width = Math.max(2, 100 * Math.max(0, teams[i].score) / max) + '%'));
+}
+
+function updateLive() {
+  const st = ST;
+  const teamsEl = $('#teams');
+  if (teamsEl) teamsEl.innerHTML = Object.values(st.teams).map(t => `<span class="team-chip ${t.online ? 'online' : ''} ${t.done ? 'done' : ''} ${t.locked ? 'locked' : ''}"><span class="dot"></span>${esc(t.name)} <span class="muted">${t.score}</span>${t.done && st.phase !== 'reveal' ? ' ✓' : ''}</span>`).join('');
+  if (st.phase === 'lobby' && teamsEl && !Object.keys(st.teams).length) teamsEl.innerHTML = '<span class="muted">لم ينضم أحد بعد…</span>';
+  if (['question', 'bet'].includes(st.phase)) {
+    const secs = st.roundType === 'flag' ? (st.buzz && st.buzz.answering ? st.cfg.flag.answerWindow : st.cfg.flag.buzzWindow) : st.roundType === 'map' ? st.cfg.map.window : st.phase === 'bet' ? st.cfg.auction.betWindow : st.cfg.auction.answerWindow;
+    const b = $('#bar'), n = $('#num');
+    if (b && st.deadline !== lastDeadline) { lastDeadline = st.deadline; cd.set(0); cd = makeCountdown(b, n); cd.set(st.deadline, secs); }
+  }
+  const status = $('#status');
+  if (status && st.roundType === 'flag') {
+    if (st.phase === 'question') {
+      if (st.buzz && st.buzz.holder) status.innerHTML = `🔔 فريق <b>${esc(teamName(st.buzz.holder))}</b> يجاوب…`;
+      else status.innerHTML = 'اضغطوا الجرس! 🔔';
+    }
+  }
+}
+
+function drawMapOverlay() {
+  if (!map || !ST) return; map.clear();
+  const r = ST.result;
+  if (ST.phase === 'reveal' && r && r.target) {
+    if (r.target.country) map.highlight(r.target.country);
+    for (const [tid, p] of Object.entries(r.pins || {})) { map.line(p.x, p.y, r.target.x, r.target.y); map.pin(p.x, p.y, { label: teamName(tid) }); }
+    map.target(r.target.x, r.target.y);
+  }
+}
+
+function showReveal(prev) {
+  const st = ST, r = st.result;
+  const prevHolder = prev && prev.buzz && prev.buzz.holder;
+  if (st.roundType === 'flag') {
+    $$('#opts .opt').forEach(o => o.classList.toggle('correct', Number(o.dataset.i) === r.answerIndex));
+    const who = Object.entries(r.delta).filter(([, d]) => d > 0).map(([id]) => teamName(id));
+    const wrong = Object.entries(r.delta).filter(([, d]) => d < 0).map(([id]) => teamName(id));
+    $('#status').innerHTML = (who.length ? `✅ <b>${esc(who[0])}</b> +${st.cfg.flag.correct}` : `⏱ لا أحد أصاب — الإجابة: <b>${esc(r.answer)}</b>`) + (wrong.length ? `<div class="muted" style="font-size:1.1rem">أخطأ: ${wrong.map(esc).join('، ')} (<span class="num">${st.cfg.flag.wrong}</span>)</div>` : '');
+    who.length ? Sfx.good() : Sfx.bad();
+  } else if (st.roundType === 'map') {
+    const rows = Object.values(st.teams).map(t => ({ t, p: r.pins[t.id], d: r.delta[t.id] || 0 })).sort((a, b) => b.d - a.d);
+    $('#res').innerHTML = `<div class="status">الإجابة: <b>${esc(r.answer)}</b></div><table class="res"><tr><th>الفريق</th><th>النتيجة</th><th>النقاط</th></tr>${rows.map(x => `<tr><td>${esc(x.t.name)}</td><td>${x.p ? (x.p.inside ? '🎯 داخل الهدف' : 'بعيد بـ ' + x.p.dist + ' وحدة') : 'لم يضع دبوساً'}</td><td class="num"><span class="delta ${x.d > 0 ? 'pos' : ''}">${fmt(x.d)}</span></td></tr>`).join('')}</table>`;
+    Sfx.good(); if (map) drawMapOverlay();
+  } else if (st.roundType === 'auction') {
+    $$('#opts .opt').forEach(o => o.classList.toggle('correct', Number(o.dataset.i) === r.answerIndex));
+    const rows = Object.values(st.teams).map(t => ({ t, x: r.detail[t.id] || {}, d: r.delta[t.id] || 0 })).sort((a, b) => b.d - a.d);
+    $('#res').innerHTML = `<table class="res"><tr><th>الفريق</th><th>الرهان</th><th>الإجابة</th><th>النتيجة</th></tr>${rows.map(x => `<tr><td>${esc(x.t.name)}</td><td class="num">${x.x.bet ?? '—'}</td><td>${x.x.choice == null ? '<span class="muted">لم يجب</span>' : esc(st.q.options[x.x.choice])} ${x.x.ok ? '✅' : '❌'}</td><td class="num"><span class="delta ${x.d > 0 ? 'pos' : 'neg'}">${fmt(x.d)}</span></td></tr>`).join('')}</table>`;
+    rows.some(x => x.d > 0) ? Sfx.good() : Sfx.bad();
+  }
+}
+
+// صوت الجرس عند أول ضغطة
+socket.on('state', st => { if (st.buzz && st.buzz.holder && lastPhaseKey !== st.qIndex + ':' + st.buzz.holder) { lastPhaseKey = st.qIndex + ':' + st.buzz.holder; Sfx.buzz(); } });
+
+function renderManage() {
+  const el = $('#manage');
+  el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><b>إدارة الفرق</b><button class="ghost small" onclick="document.getElementById('manage').classList.add('hidden')">إغلاق</button></div>` +
+    Object.values(ST.teams).map(t => `<div class="row"><span style="min-width:160px">${esc(t.name)}</span><span class="muted">${t.score}</span>
+      <input type="number" placeholder="±" id="adj-${t.id}"><button class="ghost small" onclick="adjust('${t.id}')">تعديل النقاط</button><button class="danger small" onclick="socket.emit('host:kick','${t.id}')">حذف</button></div>`).join('') || '<div class="muted">لا فرق</div>';
+}
+function adjust(id) { const v = Number($('#adj-' + id).value); if (v) socket.emit('host:adjust', { id, delta: v }); }
+</script>
+</body>
+</html>

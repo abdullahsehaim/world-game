@@ -1,0 +1,69 @@
+:root {
+  --bg: #0b1020; --bg2: #121a33; --card: #182243; --line: #263157;
+  --text: #f1f5ff; --muted: #9aa7c7; --accent: #f5b942; --accent2: #38bdf8;
+  --good: #22c55e; --bad: #ef4444; --font: "Segoe UI", "Tajawal", "Noto Naskh Arabic", system-ui, sans-serif;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); direction: rtl; }
+body { background: radial-gradient(1200px 600px at 50% -10%, #1b2a5e 0%, var(--bg) 60%); }
+h1, h2, h3 { margin: 0; font-weight: 700; }
+button { font-family: inherit; font-size: 1rem; border: 0; border-radius: 14px; padding: .8rem 1.3rem; cursor: pointer; color: #0b1020; background: var(--accent); font-weight: 700; transition: transform .08s, filter .15s; }
+button:active { transform: scale(.97); }
+button:disabled { opacity: .45; cursor: default; }
+button.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
+button.danger { background: var(--bad); color: #fff; }
+button.sky { background: var(--accent2); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 1.2rem; text-align: center; }
+.muted { color: var(--muted); }
+.hidden { display: none !important; }
+.pill { display: inline-block; padding: .25rem .8rem; border-radius: 999px; background: var(--bg2); border: 1px solid var(--line); font-size: .9rem; }
+.pill.gold { background: var(--accent); color: #0b1020; border-color: transparent; }
+.pill.good { background: var(--good); color: #fff; border-color: transparent; }
+.pill.bad { background: var(--bad); color: #fff; border-color: transparent; }
+
+/* شريط الوقت */
+.timer { height: 10px; background: var(--bg2); border-radius: 999px; overflow: hidden; border: 1px solid var(--line); }
+.timer .bar { height: 100%; width: 0; background: linear-gradient(90deg, var(--accent2), var(--accent)); transition: width .1s linear; }
+.timer .bar.urgent { background: var(--bad); }
+
+/* الخيارات */
+.options { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; }
+.options .opt { background: var(--bg2); border: 2px solid var(--line); color: var(--text); border-radius: 16px; padding: 1rem .6rem; font-size: 1.15rem; text-align: center; min-height: 64px; display: flex; align-items: center; justify-content: center; }
+.options .opt.correct { background: var(--good); border-color: var(--good); color: #fff; }
+.options .opt.wrong { background: var(--bad); border-color: var(--bad); color: #fff; }
+.options .opt.picked { outline: 3px solid var(--accent); }
+
+/* الخريطة */
+svg.map { width: 100%; height: 100%; display: block; background: #0d1a3a; border-radius: 16px; }
+svg.map .sea { fill: #0d1a3a; }
+svg.map .land path { fill: #2d3f73; stroke: #0d1a3a; stroke-width: .6; }
+svg.map .land path.hit { fill: var(--accent); }
+svg.map .pin circle { fill: var(--accent2); stroke: #fff; stroke-width: .8; opacity: .9; }
+svg.map .pin .dot { fill: #fff; stroke: none; }
+svg.map .pin.me circle { fill: var(--accent); }
+svg.map .pin text { fill: #fff; text-anchor: middle; font-weight: 700; paint-order: stroke; stroke: #0b1020; stroke-width: 3px; font-family: var(--font); }
+svg.map .target .ring { fill: none; stroke: var(--good); stroke-width: 2; animation: pulse 1.2s infinite; }
+svg.map .target .core { fill: var(--good); }
+svg.map .dist { stroke: #fff; stroke-dasharray: 3 3; opacity: .6; }
+@keyframes pulse { 0% { transform: scale(.6); opacity: 1 } 100% { transform: scale(1.6); opacity: 0 } }
+
+/* الفرق */
+.team-chip { display: inline-flex; align-items: center; gap: .5rem; padding: .5rem .9rem; border-radius: 999px; background: var(--bg2); border: 1px solid var(--line); margin: .25rem; font-size: 1.05rem; }
+.team-chip .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--bad); }
+.team-chip.online .dot { background: var(--good); }
+.team-chip.done { border-color: var(--good); }
+.team-chip.locked { opacity: .45; text-decoration: line-through; }
+.board { display: flex; flex-direction: column; gap: .5rem; width: min(900px, 95%); margin: 0 auto; }
+.board .row { display: grid; grid-template-columns: 2.5rem 1fr auto; align-items: center; gap: 1rem; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: .6rem 1rem; font-size: 1.3rem; }
+.board .row .rank { font-weight: 800; color: var(--accent); text-align: center; }
+.board .row .bar { height: 8px; background: var(--bg2); border-radius: 999px; overflow: hidden; margin-top: .3rem; }
+.board .row .bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent2), var(--accent)); transition: width .8s ease; }
+.board .row .score { font-variant-numeric: tabular-nums; font-weight: 800; min-width: 4.5rem; text-align: left; direction: ltr; }
+.board .row .delta { font-size: .95rem; margin-inline-start: .5rem; }
+.delta.pos { color: var(--good); } .delta.neg { color: var(--bad); }
+.num, .delta, .result-big, .bet-amount { direction: ltr; unicode-bidi: isolate; display: inline-block; }
+
+.fade-in { animation: fade .35s ease; }
+@keyframes fade { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
+.shake { animation: shake .4s; }
+@keyframes shake { 20% { transform: translateX(-6px) } 40% { transform: translateX(6px) } 60% { transform: translateX(-4px) } 80% { transform: translateX(4px) } }

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b1020">
+<title>جولة العالم</title>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+<style>
+  body { display: flex; flex-direction: column; min-height: 100dvh; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); overflow-x: hidden; }
+  header { display: flex; justify-content: space-between; align-items: center; padding: .7rem 1rem; border-bottom: 1px solid var(--line); }
+  header .me { font-weight: 800; font-size: 1.1rem; }
+  header .score { direction: ltr; font-variant-numeric: tabular-nums; }
+  main { flex: 1; display: flex; flex-direction: column; padding: 1rem; gap: .9rem; }
+  .center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: .8rem; }
+  .title { font-size: 1.7rem; font-weight: 800; }
+  input.name { width: 100%; font-size: 1.3rem; padding: .9rem 1rem; border-radius: 14px; border: 1px solid var(--line); background: var(--bg2); color: var(--text); font-family: inherit; text-align: center; }
+  button.full { width: 100%; font-size: 1.2rem; padding: 1rem; }
+  .team-list { display: flex; flex-wrap: wrap; justify-content: center; }
+  .buzzer { width: min(78vw, 300px); height: min(78vw, 300px); border-radius: 50%; background: radial-gradient(circle at 35% 30%, #ff8a8a, #e11d48 55%, #9f1239); color: #fff; font-size: 2rem; font-weight: 800; box-shadow: 0 20px 50px rgba(225,29,72,.45), inset 0 -10px 25px rgba(0,0,0,.3); border: 8px solid #fff3; }
+  .buzzer:active { transform: scale(.94); }
+  .buzzer:disabled { filter: grayscale(.8); opacity: .5; }
+  .mapbox { width: 100%; height: 48dvh; position: relative; }
+  .map-tools { position: absolute; top: .5rem; left: .5rem; display: flex; flex-direction: column; gap: .4rem; }
+  .map-tools button { width: 44px; height: 44px; padding: 0; font-size: 1.4rem; background: #fff; }
+  .q { font-size: 1.3rem; font-weight: 700; text-align: center; }
+  .timer-row { display: flex; align-items: center; gap: .6rem; }
+  .timer-row .timer { flex: 1; }
+  .timer-row .num { font-weight: 800; min-width: 1.8rem; text-align: center; font-variant-numeric: tabular-nums; }
+  .options .opt { min-height: 76px; font-size: 1.2rem; }
+  .bet-box { width: 100%; }
+  .bet-amount { font-size: 3.2rem; font-weight: 800; color: var(--accent); text-align: center; direction: ltr; }
+  input[type=range] { width: 100%; accent-color: var(--accent); height: 40px; }
+  .presets { display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem; }
+  .presets button { padding: .7rem 0; font-size: 1rem; }
+  .result-big { font-size: 3rem; font-weight: 800; }
+  .result-big.pos { color: var(--good); } .result-big.neg { color: var(--bad); }
+  .flag-mini { width: 60%; border-radius: 10px; }
+  .small-link { color: var(--muted); font-size: .9rem; background: none; border: 0; text-decoration: underline; padding: .3rem; }
+</style>
+</head>
+<body>
+<header>
+  <div class="me" id="me">🌍 جولة العالم</div>
+  <div><span class="pill score" id="score"></span> <span class="pill" id="conn">…</span></div>
+</header>
+<main id="main"></main>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/common.js"></script>
+<script>
+const socket = io();
+let ST = null, TEAM = null, map = null, pin = null, lastKey = '', cd = makeCountdown(null, null), lastDeadline = -1, betVal = null;
+const main = $('#main');
+try { TEAM = JSON.parse(localStorage.getItem('wg_team') || 'null'); } catch { }
+
+socket.on('connect', () => {
+  $('#conn').textContent = 'متصل'; $('#conn').className = 'pill good';
+  if (TEAM) socket.emit('player:join', { teamId: TEAM.id, name: TEAM.name }, r => { if (r.ok) saveTeam(r); else { TEAM = null; localStorage.removeItem('wg_team'); render(); } });
+});
+socket.on('disconnect', () => { $('#conn').textContent = 'انقطع'; $('#conn').className = 'pill bad'; });
+socket.on('reset', () => { TEAM = null; localStorage.removeItem('wg_team'); });
+socket.on('state', st => { syncClock(st); ST = st; if (TEAM && !st.teams[TEAM.id]) { TEAM = null; localStorage.removeItem('wg_team'); } render(); });
+
+function saveTeam(r) { TEAM = { id: r.teamId, name: r.name }; localStorage.setItem('wg_team', JSON.stringify(TEAM)); render(); }
+function join(name) { socket.emit('player:join', { name }, r => { if (r.ok) saveTeam(r); else toast(r.error || 'تعذر الانضمام'); }); }
+function leave() { socket.emit('player:leave'); TEAM = null; localStorage.removeItem('wg_team'); lastKey = ''; render(); }
+function toast(msg) { const d = document.createElement('div'); d.className = 'pill bad'; d.style.cssText = 'position:fixed;top:4rem;left:50%;transform:translateX(-50%);z-index:9'; d.textContent = msg; document.body.appendChild(d); setTimeout(() => d.remove(), 2200); }
+
+const me = () => TEAM && ST ? ST.teams[TEAM.id] : null;
+const teamName = id => (ST.teams[id] || {}).name || '—';
+
+function render() {
+  if (!ST) return;
+  const t = me();
+  $('#me').textContent = t ? `👥 ${t.name}` : '🌍 جولة العالم';
+  $('#score').textContent = t ? `${t.score} نقطة` : '';
+  const key = [TEAM ? TEAM.id : '', ST.phase, ST.round, ST.qIndex, ST.buzz && ST.buzz.holder, (ST.buzz && ST.buzz.locked.join(',')) || '', t && t.done, ST.result ? 1 : 0].join('|');
+  if (key === lastKey) { updateTimer(); return; }
+  lastKey = key; draw(); updateTimer();
+}
+
+function updateTimer() {
+  const b = $('#bar'), n = $('#num'); if (!b) return;
+  if (ST.deadline !== lastDeadline) {
+    lastDeadline = ST.deadline;
+    const secs = ST.roundType === 'flag' ? (ST.buzz && ST.buzz.answering ? ST.cfg.flag.answerWindow : ST.cfg.flag.buzzWindow) : ST.roundType === 'map' ? ST.cfg.map.window : ST.phase === 'bet' ? ST.cfg.auction.betWindow : ST.cfg.auction.answerWindow;
+    cd.set(0); cd = makeCountdown(b, n); cd.set(ST.deadline, secs);
+  }
+}
+
+const timerHtml = `<div class="timer-row"><div class="timer"><div class="bar" id="bar"></div></div><div class="num" id="num"></div></div>`;
+function wrap(html) { main.innerHTML = `<div class="center fade-in" style="width:100%">${html}</div>`; lastDeadline = -1; map = null; pin = null; }
+
+function draw() {
+  const st = ST, t = me();
+  if (!TEAM || !t) {
+    const others = Object.values(st.teams);
+    wrap(`<div style="font-size:3.5rem">🌍</div><div class="title">جولة العالم</div><p class="muted">اكتب اسم فريقك (أو اسمك إذا تلعب لحالك)</p>
+      <input class="name" id="name" maxlength="24" placeholder="اسم الفريق" autocomplete="off">
+      <button class="full" id="btnJoin">دخول</button>
+      ${others.length ? `<p class="muted" style="margin-top:1rem">أو انضم لفريق موجود:</p><div class="team-list">${others.map(o => `<button class="ghost small-join" data-name="${esc(o.name)}">${esc(o.name)}</button>`).join('')}</div>` : ''}`);
+    $('#btnJoin').onclick = () => { Sfx.unlock(); const v = $('#name').value.trim(); if (v) join(v); };
+    $('#name').addEventListener('keydown', e => { if (e.key === 'Enter') $('#btnJoin').click(); });
+    $$('.small-join').forEach(b => b.onclick = () => { Sfx.unlock(); join(b.dataset.name); });
+    return;
+  }
+  if (st.phase === 'lobby') return wrap(`<div style="font-size:3rem">✅</div><div class="title">أنت في اللعبة</div><p class="muted">انتظروا المضيف يبدأ… ${t.members > 1 ? `(${t.members} أجهزة في فريقكم)` : ''}</p><button class="small-link" onclick="leave()">تغيير الفريق</button>`);
+  if (st.phase === 'intro') return wrap(`<div style="font-size:3rem">${ROUND_ICON[st.roundType]}</div><div class="muted">الجولة ${st.round + 1}</div><div class="title">${esc(st.roundTitle)}</div><p style="line-height:1.7">${esc(st.roundDesc)}</p>`);
+  if (st.phase === 'leaderboard' || st.phase === 'end') {
+    const sorted = Object.values(st.teams).sort((a, b) => b.score - a.score); const rank = sorted.findIndex(x => x.id === t.id) + 1;
+    return wrap(`<div style="font-size:3rem">${st.phase === 'end' ? '🏆' : '📊'}</div><div class="title">${st.phase === 'end' ? 'انتهت اللعبة' : 'نهاية الجولة'}</div><div class="result-big">${rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '#' + rank}</div><p class="muted">ترتيبكم ${rank} من ${sorted.length} برصيد ${t.score} نقطة</p>`);
+  }
+
+  // ----- الأعلام -----
+  if (st.roundType === 'flag') {
+    const q = st.q, bz = st.buzz || {};
+    if (st.phase === 'reveal') {
+      const d = (st.result.delta || {})[t.id] || 0;
+      return wrap(`<img class="flag-mini" src="/flags/${esc(q.flag)}.svg"><div class="muted">الإجابة الصحيحة</div><div class="title">${esc(st.result.answer)}</div><div class="result-big ${d > 0 ? 'pos' : d < 0 ? 'neg' : ''}">${d ? fmt(d) : '0'}</div>`);
+    }
+    if (bz.holder === t.id && bz.answering) {
+      wrap(`${timerHtml}<div class="q">بسرعة! ما هذه الدولة؟</div><div class="options" style="width:100%">${q.options.map((o, i) => `<button class="opt" data-i="${i}">${esc(o)}</button>`).join('')}</div>`);
+      $$('.opt').forEach(b => b.onclick = () => { $$('.opt').forEach(x => x.disabled = true); b.classList.add('picked'); socket.emit('player:answer', b.dataset.i); });
+      return;
+    }
+    if (t.locked) return wrap(`${timerHtml}<div style="font-size:3rem">🔒</div><div class="title">انتهت محاولتكم</div><p class="muted">انتظروا السؤال التالي</p>`);
+    if (bz.holder) return wrap(`${timerHtml}<div style="font-size:3rem">⏳</div><div class="title">${esc(teamName(bz.holder))} يجاوب…</div><p class="muted">إذا أخطأ يُفتح الجرس لكم</p>`);
+    wrap(`${timerHtml}<div class="q">${esc(q.text)}</div><button class="buzzer" id="buzz">اضغط!</button><p class="muted">أول من يضغط يجاوب</p>`);
+    $('#buzz').onclick = () => { Sfx.unlock(); $('#buzz').disabled = true; socket.emit('player:buzz'); };
+    return;
+  }
+
+  // ----- الخريطة -----
+  if (st.roundType === 'map') {
+    if (st.phase === 'reveal') {
+      const r = st.result, p = (r.pins || {})[t.id], d = (r.delta || {})[t.id] || 0;
+      wrap(`<div class="muted">الإجابة</div><div class="title">${esc(r.answer)}</div><div class="result-big ${d > 0 ? 'pos' : ''}">${fmt(d)}</div><p class="muted">${p ? (p.inside ? '🎯 دبوسكم داخل الهدف' : 'بعيد بـ ' + p.dist + ' وحدة') : 'لم تضعوا دبوساً'}</p><div class="mapbox" style="height:36dvh"><svg class="map" id="map"></svg></div>`);
+      loadWorld().then(() => { map = buildMap($('#map')); if (r.target.country) map.highlight(r.target.country); if (p) { map.line(p.x, p.y, r.target.x, r.target.y); map.pin(p.x, p.y, { cls: 'me', label: 'أنتم' }); } map.target(r.target.x, r.target.y); });
+      return;
+    }
+    if (t.done) return wrap(`${timerHtml}<div style="font-size:3rem">📍</div><div class="title">تم تثبيت الدبوس</div><p class="muted">انتظروا بقية الفرق</p>`);
+    wrap(`${timerHtml}<div class="q">${esc(st.q.text)}</div>
+      <div class="mapbox"><svg class="map" id="map"></svg><div class="map-tools"><button id="zi">+</button><button id="zo">−</button><button id="zr">⟲</button></div></div>
+      <p class="muted" id="hint">اسحب للتحريك، قرّب بإصبعين، واضغط لوضع الدبوس</p>
+      <button class="full" id="confirm" disabled>تثبيت الدبوس 📍</button>`);
+    loadWorld().then(() => {
+      map = buildMap($('#map'), { interactive: true, onTap: p => { pin = p; map.clear(); map.pin(p.x, p.y, { cls: 'me', r: 8 }); $('#confirm').disabled = false; $('#hint').textContent = 'يمكنك الضغط في مكان آخر لتغيير الموقع'; } });
+      $('#zi').onclick = () => { map.zoomIn(); redrawPin(); }; $('#zo').onclick = () => { map.zoomOut(); redrawPin(); }; $('#zr').onclick = () => { map.reset(); redrawPin(); };
+      $('#confirm').onclick = () => { if (pin) { $('#confirm').disabled = true; socket.emit('player:pin', { x: pin.x, y: pin.y }); } };
+    });
+    return;
+  }
+
+  // ----- المزاد -----
+  if (st.roundType === 'auction') {
+    if (st.phase === 'bet') {
+      if (t.done) return wrap(`${timerHtml}<div style="font-size:3rem">💰</div><div class="title">رهانكم: ${t.bet}</div><p class="muted">انتظروا السؤال…</p>`);
+      const max = Math.max(st.cfg.auction.floor, t.score), min = st.cfg.auction.minBet;
+      betVal = Math.max(min, Math.round(max * 0.25));
+      wrap(`${timerHtml}<div class="pill gold">${esc(st.q.category)} · ${esc(st.q.difficulty)}</div><div class="muted">كم تراهنون من ${max}؟</div>
+        <div class="bet-box"><div class="bet-amount" id="amt">${betVal}</div><input type="range" id="rng" min="${min}" max="${max}" step="5" value="${betVal}">
+        <div class="presets"><button class="ghost" data-p=".1">10%</button><button class="ghost" data-p=".25">25%</button><button class="ghost" data-p=".5">50%</button><button class="danger" data-p="1">الكل!</button></div></div>
+        <button class="full" id="btnBet">تأكيد الرهان</button>`);
+      const rng = $('#rng'); rng.oninput = () => { betVal = Number(rng.value); $('#amt').textContent = betVal; };
+      $$('.presets button').forEach(b => b.onclick = () => { betVal = Math.max(min, Math.round(max * Number(b.dataset.p))); rng.value = betVal; $('#amt').textContent = betVal; });
+      $('#btnBet').onclick = () => { $('#btnBet').disabled = true; socket.emit('player:bet', betVal); };
+      return;
+    }
+    if (st.phase === 'question') {
+      if (t.done) return wrap(`${timerHtml}<div style="font-size:3rem">🤞</div><div class="title">تم إرسال الإجابة</div><p class="muted">رهانكم ${t.bet} — انتظروا الكشف</p>`);
+      wrap(`${timerHtml}<div class="pill gold">الرهان: ${t.bet}</div><div class="q">${esc(st.q.text)}</div><div class="options" style="width:100%">${st.q.options.map((o, i) => `<button class="opt" data-i="${i}">${esc(o)}</button>`).join('')}</div>`);
+      $$('.opt').forEach(b => b.onclick = () => { $$('.opt').forEach(x => x.disabled = true); b.classList.add('picked'); socket.emit('player:answer', b.dataset.i); });
+      return;
+    }
+    if (st.phase === 'reveal') {
+      const r = st.result, x = (r.detail || {})[t.id] || {}, d = (r.delta || {})[t.id] || 0;
+      return wrap(`<div style="font-size:3rem">${x.ok ? '🎉' : '😬'}</div><div class="muted">الإجابة الصحيحة</div><div class="title">${esc(r.answer)}</div><div class="result-big ${d > 0 ? 'pos' : 'neg'}">${fmt(d)}</div><p class="muted">${x.choice == null ? 'لم تجيبوا في الوقت' : 'إجابتكم: ' + esc(st.q.options[x.choice])}</p>`);
+    }
+  }
+}
+function redrawPin() { if (map && pin) { map.clear(); map.pin(pin.x, pin.y, { cls: 'me', r: 8 }); } }
+</script>
+</body>
+</html>
